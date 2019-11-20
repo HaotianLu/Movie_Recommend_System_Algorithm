@@ -98,7 +98,6 @@ ALS.R1R2 <- function(f = 10, lambda = 0.3, max.iter, data, train, test){
   }
   
   return(list(p = p, q = q, bi = bi, bu = bu, mu= mu, train_RMSE = train_RMSE, test_RMSE = test_RMSE, ALS.rating=est_rating))
-  
 }
 
 
