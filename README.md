@@ -7,12 +7,13 @@ Term: Fall 2019
 + Team #
 + Projec title: Lorem ipsum dolor sit amet
 + Team members
-	+ team member 1
-	+ team member 2
-	+ team member 3
-	+ team member 4
-	+ team member 5
-+ Project summary: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+	+ Yanzhu Chen (yc3511)
+	+ Sagar Lal (SL3946)
+	+ Haotian Lu (hl3089)
+	+ Yakun Wang (yw3211)
+	+ Yizhen Xu (yx2470)
+
++ Project summary: In this project we explore different approaches to matrix factorization on ml-small dataset. Specifically, when performing matrix factorization with user and movie biases, as well as global bias, we explore what post-processing will improve performance. When we apply KNN post processing we see few improvements as suggested by paper 2. Meanwhile, after applying KRR the results improve prior to linear regression.
 	
 **Contribution statement**: [default] All team members contributed equally in all stages of this project. All team members approve our work presented in this GitHub repository including this contributions statement. 
 

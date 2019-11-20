@@ -81,6 +81,8 @@ f_l <- expand.grid(f_list, l_list)
 ```
 
 ```{r, eval=FALSE}
+#Cross validation takes several hours, so don't run. Instead next code snippets loads from memory
+
 result_summary <- array(NA, dim = c(4, 10, nrow(f_l))) 
 ALS.CV.Runtime <- system.time(for(i in 1:nrow(f_l)){
     par <- paste("f = ", f_l[i,1], ", lambda = ", f_l[i,2])
@@ -103,6 +105,7 @@ rmse %>% ggplot(aes(x = iteration, y = RMSE, col = train_test)) + geom_point() +
 ### ALS result
 
 ```{r, eval= FALSE}
+#Parameters for f,lamda, and max iter determined from image above of 5-fold cross validation
 result <- ALS.R1R2(f = 10, lambda = 10, max.iter=3, data=data, train=data_train, test=data_test)
 save(result, file = "../output/mat_fac.RData")
 ```
@@ -116,6 +119,7 @@ load(file = "../output/mat_fac.RData")
 #### SVD with Kernel Ridge Regression
 
 ```{r get similarity matrix, eval=FALSE}
+#Generating the cosine similarity matrix can take 10 min, so we save as an Rdata after generating once
 similarity.matrix <- cosine(result$q)
 colnames(similarity.matrix) <- levels(as.factor(data$movieId))
 rownames(similarity.matrix) <- levels(as.factor(data$movieId))
@@ -135,29 +139,30 @@ source("../lib/Getting.pred.R")
 
 data_train$als.pred <- apply(data_train, 1, get.pred, est_rating=result$ALS.rating)
 data_train$mu <- rep(result$mu, nrow(data_train))
-data_train$bi.pred <- result$bi[1,data_train$userId]
-data_train$bu.pred <- result$bu[1,as.character(data_train$movieId)]
+data_train$bi.pred <- result$bi[1,as.character(data_train$movieId)]
+data_train$bu.pred <- result$bu[1,data_train$userId]
 data_train$knn.pred <- apply(data_train, 1, get.pred, est_rating=KNN.result$knn.rating)
 
 data_test$als.pred <- apply(data_test, 1, get.pred, est_rating=result$ALS.rating)
 data_test$mu <- rep(result$mu, nrow(data_test))
-data_test$bi.pred <- result$bi[1,data_test$userId]
-data_test$bu.pred <- result$bu[1,as.character(data_test$movieId)]
+data_test$bi.pred <- result$bi[1,as.character(data_test$movieId)]
+data_test$bu.pred <- result$bu[1,data_test$userId]
 data_test$knn.pred <- apply(data_test, 1, get.pred, est_rating=KNN.result$knn.rating)
 
 ## fit linear model
 als.knn.model <- lm(rating ~ mu+bi.pred+bu.pred+knn.pred, data=data_train)
 
 ## get training prediction
-als.knn.train <- predict(als.knn.model, data.frame(cbind(data_train$mu, data_train$bi.pred, data_train$bu.pred, data_train$knn.pred)))
+als.knn.train <- predict(als.knn.model, data.frame(cbind(mu = data_train$mu, bi.pred = data_train$bi.pred, bu.pred = data_train$bu.pred, knn.pred = data_train$knn.pred)))
 
 ## get testing prediction
-als.krr.test <- predict(als.krr.model, data.frame(cbind(data_train$mu, data_test$bi.pred, data_test$bu.pred, data_test$knn.pred)))
+als.knn.test <- predict(als.knn.model, data.frame(cbind(mu = data_test$mu, bi.pred = data_test$bi.pred, bu.pred = data_test$bu.pred, knn.pred = data_test$knn.pred)))
 
 ## get training and testing RMSE
-als.krr.train.rmse <- sqrt(mean((data_train$rating - als.knn.train)^2))
-als.krr.test.rmse <- sqrt(mean((data_test$rating - als.knn.test)^2))
+als.knn.train.rmse <- sqrt(mean((data_train$rating - als.knn.train)^2))
+als.knn.test.rmse <- sqrt(mean((data_test$rating - als.knn.test)^2))
 
+#Note train rmse and test rmse are worse than pure ALS with bias. This confirms what the paper claimed
 ```
 
 
