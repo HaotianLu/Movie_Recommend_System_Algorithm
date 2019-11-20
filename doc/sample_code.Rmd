@@ -6,133 +6,211 @@ output:
   pdf_document: default
 ---
 
-In this project, you are going to explore matrix factorization methods for recommender system. The goal is to match consumers with most appropriate products. Matrix factorization methods characterize both items and users by vectors of factors inferred from item rating patterns. High correspondence between item and user factors leads to a recommendation. Matrix factorization generally has 3 parts:
-
-- factorization algorithm
-
-- regularization
-
-- postpocessing
-
-It is highly recommended to read this [review paper](./paper/P1 Recommender-Systems.pdf).
-
 ### Step 1 Load Data and Train-test Split
+```{r download packages, eval = FALSE}
+packages.used=c("dplyr", "tidyr","ggplot2","lsa")
+# check packages that need to be installed.
+packages.needed=setdiff(packages.used, 
+                        intersect(installed.packages()[,1], 
+                                  packages.used))
+# install additional packages
+if(length(packages.needed)>0){
+  install.packages(packages.needed, dependencies = TRUE)
+}
+
+if(!require("krr")){
+  install.packages("remotes")
+  remotes::install_github("TimothyKBook/krr")
+}
+```
+
 ```{r}
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(krr)
+library(lsa)
+```
+
+```{r}
 data <- read.csv("../data/ml-latest-small/ratings.csv")
 set.seed(0)
-test_idx <- sample(1:nrow(data), round(nrow(data)/5, 0))
-train_idx <- setdiff(1:nrow(data), test_idx)
-data_train <- data[train_idx,]
+## We want to make sure all movieId and all userId in the in the training dataset, we do a semi-random assignment
+
+## randomly shuffle the row of the entire dataset
+data <- data[sample(nrow(data)),]
+## get a small dataset that contains all users and all movies
+unique.user<-duplicated(data[,1])
+unique.movie<-duplicated(data[,2])
+index<-unique.user & unique.movie
+all.user.movie <- data[!index,]
+
+## split the remaining data into training and testing
+rest <- data[index,]
+test_idx <- sample(rownames(rest), round(nrow(data)/5, 0))
+train_idx <- setdiff(rownames(rest), test_idx)
+
+## combine the training with the previous dataset, which has all users and all movies
+data_train <- rbind(all.user.movie, data[train_idx,])
 data_test <- data[test_idx,]
+
+## sort the training and testing data by userId then by movieId, 
+## so when we update p and q, it is less likely to make mistakes
+data_train <- arrange(data_train, userId, movieId)
+data_test <- arrange(data_test, userId, movieId)
 ```
 
 ###Step 2 Matrix Factorization
-#### Step 2.1 Algorithm and Regularization
-Here I perform stochastic gradien descent to do matrix factorization.
-
-- For algorithms, the referenced paper are:
-
-A1. [Stochastic Gradient Descent](./paper/P1 Recommender-Systems.pdf) Section: Learning Algorithms-Stochastic Gradient Descent
-
-A2. [Gradient Descent with Probabilistic Assumptions](./paper/P3 probabilistic-matrix-factorization.pdf) Section 2
-
-A3. [Alternating Least Squares](./paper/P4 Large-scale Parallel Collaborative Filtering for the Netflix Prize.pdf) Section 3.1
-
-- For regularizations, the referenced paper are:
-
-R1. [Penalty of Magnitudes](./paper/P1 Recommender-Systems.pdf) Section: a Basic Matrix Factorization Model
-
-R2. [Bias and Intercepts](./paper/P1 Recommender-Systems.pdf) Section: Adding Biases
-
-R3. [Temporal Dynamics](./paper/P5 Collaborative Filtering with Temporal Dynamics.pdf) Section 4 linear model
-
+#### Step 2.1 Algorithm (Alternating Least Squares) and  
+#### Regularization (Penalty of Magnitudes + Bias and Intercepts)
 
 ```{r}
 U <- length(unique(data$userId))
 I <- length(unique(data$movieId))
-source("../lib/Matrix_Factorization.R")
+source("../lib/ALS.R1R2.R")
 ```
 
 
-#### Step 2.2 Parameter Tuning
-Here you should tune parameters, such as the dimension of factor and the penalty parameter $\lambda$ by cross-validation.
+#### Step 2.2 Parameter Tuning (lambda and f latent variables)
+
 ```{r}
-source("../lib/cross_validation.R")
-f_list <- seq(10, 20, 10)
-l_list <- seq(-2, -1, 1)
+source("../lib/ALS.Cross.Validation.R")
+f_list <- c(10, 20)
+l_list <- c(5, 10, 15)
 f_l <- expand.grid(f_list, l_list)
 ```
 
 ```{r, eval=FALSE}
-result_summary <- array(NA, dim = c(nrow(f_l), 10, 4)) 
-run_time <- system.time(for(i in 1:nrow(f_l)){
-    par <- paste("f = ", f_l[i,1], ", lambda = ", 10^f_l[i,2])
+result_summary <- array(NA, dim = c(4, 10, nrow(f_l))) 
+ALS.CV.Runtime <- system.time(for(i in 1:nrow(f_l)){
+    par <- paste("f = ", f_l[i,1], ", lambda = ", f_l[i,2])
     cat(par, "\n")
-    current_result <- cv.function(data, K = 5, f = f_l[i,1], lambda = 10^f_l[i,2])
+    current_result <- als.cv(data, K = 5, f = f_l[i,1], lambda = f_l[i,2])
     result_summary[,,i] <- matrix(unlist(current_result), ncol = 10, byrow = T) 
     print(result_summary)
   
 })
-
-save(result_summary, file = "../output/rmse.Rdata")
+save(result_summary, file = "../output/alg.cv.rmse.Rdata")
 ```
 
 ```{r}
-load("../output/rmse.Rdata")
-rmse <- data.frame(rbind(t(result_summary[1,,]), t(result_summary[2,,])), train_test = rep(c("Train", "Test"), each = 4), par = rep(paste("f = ", f_l[,1], ", lambda = ", 10^f_l[,2]), times = 2)) %>% gather("epoch", "RMSE", -train_test, -par)
-rmse$epoch <- as.numeric(gsub("X", "", rmse$epoch))
-rmse %>% ggplot(aes(x = epoch, y = RMSE, col = train_test)) + geom_point() + facet_grid(~par)
+load("../output/alg.cv.rmse.Rdata")
+rmse <- data.frame(rbind(t(result_summary[1,,]), t(result_summary[2,,])), train_test = rep(c("Train", "Test"), each = 6), par = rep(paste("f = ", f_l[,1], ", lambda = ", f_l[,2]), times = 2)) %>% gather("iteration", "RMSE", -train_test, -par)
+rmse$iteration <- as.numeric(gsub("X", "", rmse$iteration))
+rmse %>% ggplot(aes(x = iteration, y = RMSE, col = train_test)) + geom_point() + facet_wrap(~par, ncol=3)
 ```
 
-### Step 3 Postprocessing
-After matrix factorization, postporcessing will be performed to improve accuracy.
-The referenced papers are:
-
-P1:[Global bias correction](./paper/P4 Large-scale Parallel Collaborative Filtering for the Netflix Prize.pdf) Section 4.1
-
-P2:[Postprocessing SVD with KNN](./paper/P2 Improving regularized singular value decomposition for collaborative filtering .pdf) Section 3.5
-
-P3:[Postprocessing SVD with kernel ridge regression](./paper/P2 Improving regularized singular value decomposition for collaborative filtering .pdf) Section 3.6
-
-P4:[Linearly combination of predictors](./paper/P4 Large-scale Parallel Collaborative Filtering for the Netflix Prize.pdf) Section 4.1
+### ALS result
 
 ```{r, eval= FALSE}
-result <- gradesc(f = 10, lambda = 0.1,lrate = 0.01, max.iter = 100, stopping.deriv = 0.01,
-                   data = data, train = data_train, test = data_test)
-
+result <- ALS.R1R2(f = 10, lambda = 10, max.iter=3, data=data, train=data_train, test=data_test)
 save(result, file = "../output/mat_fac.RData")
 ```
 
-```{r}
+```{r load ALS result}
 load(file = "../output/mat_fac.RData")
+```
 
-pred_rating <- t(result$q) %*% result$p
-#define a function to extract the corresponding predictedrating for the test set.
-extract_pred_rating <- function(test_set, pred){
-  pred_rating <- pred[as.character(test_set[2]), as.character(test_set[1])]
-  return(pred_rating)
-}
-#extract predicted rating
-pred_test_rating <- apply(data_test, 1, extract_pred_rating, pred_rating)
+### Step 3 Postprocessing
+#### SVD with KNN and 
+#### SVD with Kernel Ridge Regression
 
-#mean(P)
-pred_mean <- mean(pred_test_rating)
-#mean(test)
-mean_test_rating <- mean(data_test$rating)
+```{r get similarity matrix, eval=FALSE}
+similarity.matrix <- cosine(result$q)
+colnames(similarity.matrix) <- levels(as.factor(data$movieId))
+rownames(similarity.matrix) <- levels(as.factor(data$movieId))
+save(similarity.matrix, file = "../output/similarity.matrix.Rdata")  
+```
 
-#mean(test) - mean(P)
-mean_diff <- mean_test_rating - pred_mean
+```{r KKN result}
+load(file = "../output/similarity.matrix.Rdata")
+source("../lib/KNN.Postprocessing.R")
+KNN.result <- KNN.Post(data=data, train=data_train, test=data_test)
+save(KNN.result, file = "../output/KNN.result.RData")
+```
 
-data_test$pred <- pred_test_rating
-data_test$pred_adj <- pred_test_rating + mean_diff
+```{r ALG prediction + KNN prediction}
+load("../output/KNN.result.RData")
+source("../lib/Getting.pred.R")
 
-boxplot(data_test$pred_adj ~ data_test$rating)
-#calculate RMSE
-rmse_adj <- sqrt(mean((data_test$rating - data_test$pred_adj)^2))
-cat("The RMSE of the adjusted model is", rmse_adj)
+data_train$als.pred <- apply(data_train, 1, get.pred, est_rating=result$ALS.rating)
+data_train$mu <- rep(result$mu, nrow(data_train))
+data_train$bi.pred <- result$bi[1,data_train$userId]
+data_train$bu.pred <- result$bu[1,as.character(data_train$movieId)]
+data_train$knn.pred <- apply(data_train, 1, get.pred, est_rating=KNN.result$knn.rating)
+
+data_test$als.pred <- apply(data_test, 1, get.pred, est_rating=result$ALS.rating)
+data_test$mu <- rep(result$mu, nrow(data_test))
+data_test$bi.pred <- result$bi[1,data_test$userId]
+data_test$bu.pred <- result$bu[1,as.character(data_test$movieId)]
+data_test$knn.pred <- apply(data_test, 1, get.pred, est_rating=KNN.result$knn.rating)
+
+## fit linear model
+als.knn.model <- lm(rating ~ mu+bi.pred+bu.pred+knn.pred, data=data_train)
+
+## get training prediction
+als.knn.train <- predict(als.knn.model, data.frame(cbind(data_train$mu, data_train$bi.pred, data_train$bu.pred, data_train$knn.pred)))
+
+## get testing prediction
+als.krr.test <- predict(als.krr.model, data.frame(cbind(data_train$mu, data_test$bi.pred, data_test$bu.pred, data_test$knn.pred)))
+
+## get training and testing RMSE
+als.krr.train.rmse <- sqrt(mean((data_train$rating - als.knn.train)^2))
+als.krr.test.rmse <- sqrt(mean((data_test$rating - als.knn.test)^2))
+
+```
+
+
+```{r KRR cv}
+load(file-"../lib/KRR.Cross.Validation")
+
+lambda=c(10,15,20)
+krr.cv.rmse <- matrix(0, nrow = length(lambda), ncol = 4)
+for(i in 1:length(lambda)){
+    cat("lambda=", lambda[i], "\n")
+    err_cv_svm[i,] <- krr.cv(dat_train=data, K.fold=5, lambda=lambda[i])
+    save(krr.cv.rmse, file="../output/krr.cv.rmse.RData")
+  }
+```
+
+
+```{r KRR cv visualization}
+#Load visualization of cross validation results of svm
+load("../output/krr.cv.rmse.RData")
+krr.cv.rmse <- as.data.frame(krr.cv.rmse) 
+colnames(krr.cv.rmse) <- c("mean_train_rmse", "mean_test_rmse", "sd_train_rmse", "sd_test_rmse")
+lambda=c(10,15,20)
+krr.cv.rmse$lambda = as.factor(lambda)
+krr.cv.rmse %>% 
+  ggplot(aes(x = lambda, y = mean_test_rmse,
+             ymin = mean_test_rmse - sd_test_rmse, ymax = mean_test_rmse + sd_test_rmse)) + 
+    geom_crossbar() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r KRR result}
+KRR.result <- KRR.Post(lambda = 10, data=data, train = data_train, test=data_test)
+save(KRR.result, file = "../output/KRR.result.RData")
+```
+
+```{r ALG prediction + KRR prediction}
+load("../output/KRR.result.RData")
+
+data_train$krr.pred <- apply(data_train, 1, get.pred, est_rating=KRR.result$krr.rating)
+data_test$krr.pred <- apply(data_test, 1, get.pred, est_rating=KRR.result$krr.rating)
+
+## fit linear model
+als.krr.model <- lm(rating ~ als.pred+krr.pred, data=data_train)
+
+## get training prediction
+als.krr.train <- predict(als.krr.model, data.frame(cbind(als.pred=data_train$als.pred, krr.pred=data_train$krr.pred)))
+
+## get testing prediction
+als.krr.test <- predict(als.krr.model, data.frame(cbind(als.pred=data_test$als.pred, krr.pred=data_test$krr.pred)))
+
+## get training and testing RMSE
+als.krr.train.rmse <- sqrt(mean((data_train$rating - als.krr.train)^2))
+als.krr.test.rmse <- sqrt(mean((data_test$rating - als.krr.test)^2))
 ```
 
 
