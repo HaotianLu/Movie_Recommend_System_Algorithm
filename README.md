@@ -20,7 +20,7 @@ Term: Fall 2019
   + Yanzhu Chen: Read Papers, KRR, KNN Post Processing, High rating accuracy threshold and calculation
   + Sagar Lal: Read Papers, User Based KNN Post Processing, KNN main.rmd, readme file
   + Haotian Lu: Read Papers, ALS+R1R2 algorithm, organize process, support group members 
-  + Yakun Wang: Read Papers, ALS, KNN, KRR function and cross validation in R, generate main.rmd, High rating accuracy idea
+  + Yakun Wang: Read Papers, ALS+R1R2, KNN, KRR function and cross validation in R, generate main.rmd, High rating accuracy idea
   + Yizhen Xu: Read Papers, KRR Post Processing, High rating accuracy Threshold, Slides and presentation 
 
 Following [suggestions](http://nicercode.github.io/blog/2013-04-05-projects/) by [RICH FITZJOHN](http://nicercode.github.io/about/#Team) (@richfitz). This folder is orgarnized as follows.
