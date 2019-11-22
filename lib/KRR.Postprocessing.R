@@ -26,7 +26,7 @@ KRR.Post <- function (lambda = 10, data, train, test) {
   for (u in 1:U) {
     ## get movie numbers rated by user u
     i.rated.by.u <- as.character(train[train$userId==u,]$movieId)
-
+    
     X[[u]] <- result$q[,i.rated.by.u]
     norm.X[[u]] <- norm.row(t(X[[u]]))
     norm.X[[u]][is.na(norm.X[[u]])] <- 0

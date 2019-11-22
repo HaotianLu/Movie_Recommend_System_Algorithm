@@ -1,3 +1,4 @@
+
 ############################
 ### KRR Cross Validation ###
 ############################
@@ -28,6 +29,6 @@ krr.cv <- function(dat_train, K.fold, lambda){
     cv.test.error[i] <- krr.result$test_RMSE
     
   }			
-  return(list(mean_train_rmse = mean(cv.train.error), mean_test_rmse = mean(cv.test.error),
+  return(c(mean_train_rmse = mean(cv.train.error), mean_test_rmse = mean(cv.test.error),
               sd_train_rmse = sd(cv.train.error), sd_test_rmse = sd(cv.test.error)))
 }
